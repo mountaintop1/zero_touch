@@ -326,6 +326,13 @@ class ProvisioningOrchestrator:
         logger.info("-" * 80)
 
         try:
+            # Disable pagination to get full output without --More-- prompts
+            logger.info("Disabling terminal pagination")
+            self.console_manager.execute_device_command(
+                command='terminal length 0',
+                wait_time=2
+            )
+
             logger.info("Executing 'show version' command")
 
             # Execute show version

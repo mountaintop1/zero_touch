@@ -370,7 +370,8 @@ class ConsoleManager:
         command: str,
         wait_time: int = 5,
         expect: Optional[str] = None,
-        timeout: int = 120
+        timeout: int = 120,
+        handle_pagination: bool = True
     ) -> str:
         """
         Execute command on device console.
@@ -380,6 +381,7 @@ class ConsoleManager:
             wait_time: Time to wait after command (seconds)
             expect: Expected string in output (optional)
             timeout: Command timeout in seconds
+            handle_pagination: Automatically handle --More-- prompts (default: True)
 
         Returns:
             Command output
@@ -402,11 +404,23 @@ class ConsoleManager:
             # Wait for output
             start_time = time.time()
             output = ''
+            pagination_count = 0
+            max_pagination = 50  # Prevent infinite loops
 
             while True:
                 time.sleep(1)
                 chunk = self._read_channel()
                 output += chunk
+
+                # Handle pagination prompts
+                if handle_pagination and pagination_count < max_pagination:
+                    if '--More--' in chunk or '-- More --' in chunk:
+                        logger.debug("Detected pagination prompt, sending space")
+                        self.channel.send(' ')
+                        pagination_count += 1
+                        # Reset timer when handling pagination
+                        start_time = time.time()
+                        continue
 
                 # Check for expected string
                 if expect and expect in output:
@@ -420,7 +434,15 @@ class ConsoleManager:
 
                 # If no expect string, wait for specified time
                 if not expect and time.time() - start_time > wait_time:
+                    # Check if we're still receiving data
+                    if chunk:
+                        # Keep waiting if data is still coming
+                        start_time = time.time()
+                        continue
                     break
+
+            if pagination_count > 0:
+                logger.debug(f"Handled {pagination_count} pagination prompts")
 
             logger.debug(f"Command output ({len(output)} chars): {output[:300]}")
             return output
@@ -465,23 +487,37 @@ class ConsoleManager:
         """
         logger.debug("Parsing show version output for serial number")
 
+        # Clean up pagination artifacts
+        cleaned_output = output.replace('--More--', '').replace('-- More --', '')
+        # Remove backspace characters and ANSI escape codes
+        cleaned_output = re.sub(r'\x08+', '', cleaned_output)
+        cleaned_output = re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', cleaned_output)
+
         # Common patterns for serial number in show version output
         patterns = [
+            # Cisco IOS XE / Catalyst switches
+            r'Model [Nn]umber\s*:?\s*\S+\s+[Ss]ystem [Ss]erial [Nn]umber\s*:?\s*(\S+)',
+            r'[Ss]ystem [Ss]erial [Nn]umber\s*:?\s*(\S+)',
+            # Standard patterns
             r'[Ss]erial\s+[Nn]umber\s*:?\s+(\S+)',
-            r'[Pp]rocessor board ID\s+(\S+)',
-            r'System serial number\s*:?\s+(\S+)',
+            r'[Pp]rocessor [Bb]oard ID\s+(\S+)',
             r'Chassis Serial Number\s*:?\s+(\S+)',
+            # Alternative patterns
+            r'Serial [Nn]um\s*:?\s*(\S+)',
+            r'SN\s*:?\s*(\S+)',
         ]
 
         for pattern in patterns:
-            match = re.search(pattern, output)
+            match = re.search(pattern, cleaned_output, re.IGNORECASE)
             if match:
                 serial = match.group(1).strip()
-                logger.info(f"Extracted serial number: {serial}")
-                return serial
+                # Filter out placeholder values
+                if serial and serial.lower() not in ['none', 'n/a', 'unknown', '']:
+                    logger.info(f"Extracted serial number using pattern '{pattern}': {serial}")
+                    return serial
 
         logger.warning("Could not extract serial number from show version output")
-        logger.debug(f"Show version output: {output[:500]}")
+        logger.debug(f"Show version output (first 1000 chars): {cleaned_output[:1000]}")
 
         return None
 
