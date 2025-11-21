@@ -8,6 +8,7 @@ integrating NetBox, SSH, and console management to automate device deployment.
 import logging
 import time
 import os
+import re
 from typing import Optional, Dict, Any
 from enum import Enum
 
