@@ -154,6 +154,9 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Create virtual environment and install dependencies
 uv venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install as editable package (requires setuptools)
+uv pip install setuptools
 uv pip install -e .
 
 # Or install from requirements.txt
@@ -216,11 +219,11 @@ LOG_FILE=./logs/provisioning.log
 ### 5. Verify Installation
 
 ```bash
-# Check that script is executable
-chmod +x zero_touch_provision.py
-
 # Verify help output
-python zero_touch_provision.py --help
+uv run zero_touch_provision.py --help
+
+# Or using the script entry point
+uv run ztp --help
 ```
 
 ## Usage
@@ -229,7 +232,10 @@ python zero_touch_provision.py --help
 
 ```bash
 # Provision a device
-python zero_touch_provision.py --device-name router-01 --console-port 5
+uv run zero_touch_provision.py --device-name router-01 --console-port 5
+
+# Or using the script entry point
+uv run ztp --device-name router-01 --console-port 5
 ```
 
 ### Command-Line Options
@@ -257,7 +263,7 @@ options:
 #### Provision with Default Settings
 
 ```bash
-python zero_touch_provision.py \
+uv run zero_touch_provision.py \
   --device-name router-core-01 \
   --console-port 5
 ```
@@ -265,7 +271,7 @@ python zero_touch_provision.py \
 #### Provision with Debug Logging
 
 ```bash
-python zero_touch_provision.py \
+uv run zero_touch_provision.py \
   --device-name switch-access-01 \
   --console-port 10 \
   --log-level DEBUG
@@ -274,7 +280,7 @@ python zero_touch_provision.py \
 #### Dry Run (Validation Only)
 
 ```bash
-python zero_touch_provision.py \
+uv run zero_touch_provision.py \
   --device-name router-edge-01 \
   --console-port 15 \
   --dry-run
@@ -489,7 +495,7 @@ ERROR: Failed to copy configuration to flash
 Enable detailed debug logging:
 
 ```bash
-python zero_touch_provision.py \
+uv run zero_touch_provision.py \
   --device-name router-01 \
   --console-port 5 \
   --log-level DEBUG
@@ -562,10 +568,10 @@ For environments with multiple FTP servers, modify orchestrator to select based 
 
 ```bash
 # Unit tests (when implemented)
-python -m pytest tests/
+uv run pytest tests/
 
 # Integration tests
-python -m pytest tests/integration/
+uv run pytest tests/integration/
 ```
 
 ### Code Structure

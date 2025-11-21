@@ -3,7 +3,7 @@ name = "zero-touch-provisioning"
 version = "1.0.0"
 description = "Production-ready Python automation tool for zero-touch provisioning of network devices"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.8.1"
 license = {text = "MIT"}
 authors = [
     {name = "Network Automation Team"}
@@ -42,8 +42,15 @@ dev = [
 ztp = "zero_touch_provision:main"
 
 [build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_backend"
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["zero_touch_provision"]
+
+[tool.setuptools.packages.find]
+include = ["ztp", "ztp.*"]
+exclude = ["logs*", "prompts*", "tests*"]
 
 [tool.black]
 line-length = 100

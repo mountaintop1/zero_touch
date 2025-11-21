@@ -54,9 +54,17 @@ source .venv/bin/activate
 
 ### 2. Install Dependencies
 
-**Option A: Install from pyproject.toml (recommended)**
+**Option A: Install from requirements.txt (recommended - simplest)**
 ```bash
-# Install package in editable mode with all dependencies
+uv pip install -r requirements.txt
+```
+
+**Option B: Install from pyproject.toml in editable mode**
+```bash
+# Install setuptools first (required for building)
+uv pip install setuptools
+
+# Then install package in editable mode with all dependencies
 uv pip install -e .
 
 # This reads from pyproject.toml and installs:
@@ -66,13 +74,11 @@ uv pip install -e .
 # - python-dotenv>=1.0.0
 ```
 
-**Option B: Install from requirements.txt**
-```bash
-uv pip install -r requirements.txt
-```
-
 **Option C: Install with development dependencies**
 ```bash
+# Install setuptools first
+uv pip install setuptools
+
 # Install with optional dev dependencies (pytest, black, mypy, etc.)
 uv pip install -e ".[dev]"
 ```
@@ -80,11 +86,11 @@ uv pip install -e ".[dev]"
 ### 3. Run the Tool
 
 ```bash
-# After installation, you can run:
-python zero_touch_provision.py --device-name router-01 --console-port 5
+# After installation, you can run with uv run:
+uv run zero_touch_provision.py --device-name router-01 --console-port 5
 
 # Or if installed with -e flag, you can use the CLI command:
-ztp --device-name router-01 --console-port 5
+uv run ztp --device-name router-01 --console-port 5
 ```
 
 ## Common UV Commands
@@ -105,6 +111,8 @@ uv pip install pynetbox paramiko netmiko
 uv pip install -r requirements.txt
 
 # Install in editable mode (for development)
+# Note: Install setuptools first if using editable mode
+uv pip install setuptools
 uv pip install -e .
 ```
 
@@ -186,6 +194,11 @@ source .venv/bin/activate  # Linux/macOS
 # or: .venv\Scripts\activate  # Windows
 
 # 4. Install dependencies
+# Recommended: Install from requirements.txt
+uv pip install -r requirements.txt
+
+# OR: Install as editable package (requires setuptools)
+uv pip install setuptools
 uv pip install -e .
 
 # 5. Configure environment
@@ -193,10 +206,25 @@ cp .env.template .env
 vim .env  # Add your credentials
 
 # 6. Run the tool
-python zero_touch_provision.py --device-name router-01 --console-port 5
+uv run zero_touch_provision.py --device-name router-01 --console-port 5
 ```
 
 ## Troubleshooting
+
+### ModuleNotFoundError: No module named 'setuptools.build_backend'
+
+If you get this error when running `uv pip install -e .`, install setuptools first:
+
+```bash
+uv pip install setuptools
+uv pip install -e .
+```
+
+Or simply use requirements.txt instead:
+
+```bash
+uv pip install -r requirements.txt
+```
 
 ### UV command not found
 
@@ -248,19 +276,20 @@ For developers contributing to the project:
 
 ```bash
 # Install with development dependencies
+uv pip install setuptools
 uv pip install -e ".[dev]"
 
 # Run tests
-pytest
+uv run pytest
 
 # Format code
-black .
+uv run black .
 
 # Type checking
-mypy ztp/
+uv run mypy ztp/
 
 # Linting
-flake8 ztp/
+uv run flake8 ztp/
 ```
 
 ## Performance Comparison
