@@ -158,16 +158,19 @@ class NetBoxClient:
             try:
                 logger.debug(f"Attempting to fetch rendered config for device ID {device.id}")
                 # NetBox provides rendered config at: /api/dcim/devices/{id}/render-config/
-                rendered_config = self.nb.dcim.devices.get(device.id).render_config()
-                if rendered_config and hasattr(rendered_config, 'content'):
-                    config = rendered_config.content
-                    logger.info(f"Retrieved rendered config from config template for {device_name}")
-                elif rendered_config:
-                    # Some NetBox versions return the config directly as string
-                    config = str(rendered_config)
-                    logger.info(f"Retrieved rendered config from config template for {device_name}")
-            except AttributeError as e:
-                logger.debug(f"Rendered config not available (method not found): {e}")
+                # Use the http_session to make a direct API call
+                response = self.nb.http_session.get(
+                    f"{self.url}/api/dcim/devices/{device.id}/render-config/"
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    if data and 'content' in data:
+                        config = data['content']
+                        logger.info(f"Retrieved rendered config from config template for {device_name}")
+                    else:
+                        logger.debug(f"Rendered config response has no 'content' field: {data}")
+                else:
+                    logger.debug(f"Rendered config API returned status {response.status_code}")
             except Exception as e:
                 logger.debug(f"Could not retrieve rendered config: {e}")
 
