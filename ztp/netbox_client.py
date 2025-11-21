@@ -157,11 +157,12 @@ class NetBoxClient:
         if not config:
             try:
                 logger.debug(f"Attempting to fetch rendered config for device ID {device.id}")
-                # NetBox provides rendered config at: /api/dcim/devices/{id}/render-config/
-                # Use the http_session to make a direct API call
+
+                # First, try to get the rendered config directly via API
                 response = self.nb.http_session.get(
                     f"{self.url}/api/dcim/devices/{device.id}/render-config/"
                 )
+
                 if response.status_code == 200:
                     data = response.json()
                     if data and 'content' in data:
@@ -169,6 +170,26 @@ class NetBoxClient:
                         logger.info(f"Retrieved rendered config from config template for {device_name}")
                     else:
                         logger.debug(f"Rendered config response has no 'content' field: {data}")
+                elif response.status_code == 403:
+                    # If 403, try alternative: get config_context and check if rendered config is there
+                    logger.debug("Rendered config endpoint returned 403, trying config_context as alternative")
+                    try:
+                        # Get device with full details including config_context
+                        device_response = self.nb.http_session.get(
+                            f"{self.url}/api/dcim/devices/?name={device_name}"
+                        )
+                        if device_response.status_code == 200:
+                            devices = device_response.json().get('results', [])
+                            if devices:
+                                config_context = devices[0].get('config_context', {})
+                                logger.debug(f"Retrieved config_context with {len(config_context)} keys")
+
+                                # Check if rendered_config is in config_context
+                                if 'rendered_config' in config_context:
+                                    config = config_context['rendered_config']
+                                    logger.info(f"Retrieved rendered_config from config_context for {device_name}")
+                    except Exception as ctx_error:
+                        logger.debug(f"Could not retrieve config from config_context: {ctx_error}")
                 else:
                     logger.debug(f"Rendered config API returned status {response.status_code}")
             except Exception as e:
