@@ -1,0 +1,32 @@
+# Zero Touch Provisioning (ZTP) Tool - Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# NetBox API Client
+# Provides programmatic access to NetBox for retrieving device configurations
+pynetbox>=7.0.0
+
+# SSH Client Libraries
+# paramiko: Low-level SSH protocol implementation for jump host connections
+# netmiko: High-level SSH client optimized for network device interactions
+paramiko>=3.0.0
+netmiko>=4.0.0
+
+# Environment Variable Management
+# Loads configuration from .env files
+python-dotenv>=1.0.0
+
+# Additional dependencies that may be needed
+# These are typically installed as dependencies of the above packages,
+# but listed here for clarity and version pinning
+
+# Cryptography library (required by paramiko)
+cryptography>=41.0.0
+
+# HTTP library (required by pynetbox)
+requests>=2.31.0
+
+# YAML parser (optional, for future configuration file support)
+# PyYAML>=6.0
+
+# Rich terminal output (optional, for enhanced CLI experience)
+# rich>=13.0.0
