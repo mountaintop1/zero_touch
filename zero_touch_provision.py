@@ -113,17 +113,30 @@ def load_environment() -> dict:
     Raises:
         ValueError: If required environment variables are missing
     """
-    # Load .env file
-    env_file = Path(__file__).parent / '.env'
+    # Load .env file - search in current directory, script directory, and parent
+    search_paths = [
+        Path.cwd() / '.env',                    # Current working directory
+        Path(__file__).parent / '.env',         # Script directory
+        Path(__file__).parent.parent / '.env',  # Parent of script directory
+    ]
 
-    if not env_file.exists():
+    env_file = None
+    for path in search_paths:
+        if path.exists():
+            env_file = path
+            break
+
+    if not env_file:
         print(f"{Colors.FAIL}ERROR: .env file not found!{Colors.ENDC}")
+        print(f"\nSearched in:")
+        for path in search_paths:
+            print(f"  - {path}")
         print(f"\nPlease create .env file from template:")
         print(f"  cp .env.template .env")
         print(f"  vim .env  # Edit with your configuration")
         sys.exit(1)
 
-    load_dotenv(env_file)
+    load_dotenv(dotenv_path=env_file)
 
     # Required environment variables
     required_vars = [

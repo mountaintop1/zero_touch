@@ -108,7 +108,9 @@ class NetBoxClient:
                 )
 
             logger.info(f"Found device: {device.name} (ID: {device.id})")
-            logger.debug(f"Device details - Role: {device.device_role}, "
+            # Handle both NetBox v3 (device_role) and v4 (role) attribute names
+            role = getattr(device, 'role', None) or getattr(device, 'device_role', None)
+            logger.debug(f"Device details - Role: {role}, "
                         f"Site: {device.site}, Status: {device.status}")
 
             return device
@@ -246,12 +248,15 @@ class NetBoxClient:
 
         device = self.get_device(device_name)
 
+        # Handle both NetBox v3 (device_role) and v4 (role) attribute names
+        role = getattr(device, 'role', None) or getattr(device, 'device_role', None)
+
         metadata = {
             'name': device.name,
             'id': device.id,
             'serial': device.serial,
             'device_type': str(device.device_type) if device.device_type else None,
-            'device_role': str(device.device_role) if device.device_role else None,
+            'device_role': str(role) if role else None,
             'site': str(device.site) if device.site else None,
             'status': str(device.status) if device.status else None,
             'platform': str(device.platform) if device.platform else None,
