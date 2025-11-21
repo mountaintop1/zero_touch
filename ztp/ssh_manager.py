@@ -397,11 +397,37 @@ class ConsoleManager:
         logger.debug(f"Executing device command: {command}")
 
         try:
-            # Clear channel buffer
+            # Send carriage returns to ensure we're at a clean prompt
+            logger.debug("Clearing line and getting clean prompt")
+            self.channel.send('\r\n')
+            time.sleep(0.5)
+
+            # Clear channel buffer to remove any stale data
+            self._read_channel()
+            time.sleep(0.5)  # Brief pause to ensure buffer is clear
+
+            # Send another carriage return to get fresh prompt
+            self.channel.send('\r\n')
+            time.sleep(0.5)
             self._read_channel()
 
-            # Send command
-            self.channel.send(f'{command}\n')
+            # Send command character by character to avoid buffer issues with long commands
+            # This is more reliable for console connections
+            if len(command) > 100:  # Long command (like FTP URLs)
+                logger.debug(f"Sending long command ({len(command)} chars) slowly")
+                for char in command:
+                    self.channel.send(char)
+                    time.sleep(0.01)  # 10ms between characters
+                self.channel.send('\r\n')
+                time.sleep(2)  # Extra time for long commands
+            else:
+                logger.debug(f"Sending command: {command}")
+                self.channel.send(f'{command}\r\n')
+                time.sleep(1)
+
+            # Send an extra carriage return after the command
+            self.channel.send('\r\n')
+            time.sleep(0.5)
 
             # Wait for output
             start_time = time.time()
