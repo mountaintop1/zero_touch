@@ -371,7 +371,8 @@ class ConsoleManager:
         wait_time: int = 5,
         expect: Optional[str] = None,
         timeout: int = 120,
-        handle_pagination: bool = True
+        handle_pagination: bool = True,
+        auto_confirm: bool = False
     ) -> str:
         """
         Execute command on device console.
@@ -382,6 +383,7 @@ class ConsoleManager:
             expect: Expected string in output (optional)
             timeout: Command timeout in seconds
             handle_pagination: Automatically handle --More-- prompts (default: True)
+            auto_confirm: Automatically confirm prompts with Enter (default: False)
 
         Returns:
             Command output
@@ -406,6 +408,7 @@ class ConsoleManager:
             output = ''
             pagination_count = 0
             max_pagination = 50  # Prevent infinite loops
+            confirmation_sent = False
 
             while True:
                 time.sleep(1)
@@ -421,6 +424,23 @@ class ConsoleManager:
                         # Reset timer when handling pagination
                         start_time = time.time()
                         continue
+
+                # Handle confirmation prompts (e.g., "Destination filename [...]?")
+                if auto_confirm and not confirmation_sent:
+                    # Look for common confirmation patterns
+                    confirmation_patterns = [
+                        r'Destination filename \[.*?\]\?',
+                        r'\[confirm\]',
+                        r'\(y/n\)',
+                        r'\[yes/no\]',
+                    ]
+                    for pattern in confirmation_patterns:
+                        if re.search(pattern, chunk, re.IGNORECASE):
+                            logger.debug(f"Detected confirmation prompt: {pattern}, sending Enter")
+                            self.channel.send('\n')
+                            confirmation_sent = True
+                            start_time = time.time()
+                            break
 
                 # Check for expected string
                 if expect and expect in output:
@@ -443,6 +463,8 @@ class ConsoleManager:
 
             if pagination_count > 0:
                 logger.debug(f"Handled {pagination_count} pagination prompts")
+            if confirmation_sent:
+                logger.debug("Sent confirmation response")
 
             logger.debug(f"Command output ({len(output)} chars): {output[:300]}")
             return output

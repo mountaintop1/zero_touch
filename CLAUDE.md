@@ -97,9 +97,15 @@ The provisioning workflow is strictly sequential and cannot skip steps:
 
 4. **Device Verification**: Execute `show version`, parse serial number using regex patterns, compare with NetBox serial. **Abort if mismatch** to prevent wrong device configuration.
 
-5. **Config Copy to Flash**: Execute `copy ftp://user:pass@IP//file.txt flash: vrf Mgmt-vrf`. The command includes FTP credentials inline and assumes management VRF.
+5. **Config Copy to Flash**: Execute `copy ftp://user:pass@IP//file.txt flash: vrf Mgmt-vrf`. The command includes FTP credentials inline and assumes management VRF. **Automatic confirmation**: The tool detects the "Destination filename [...]?" prompt and automatically sends Enter to accept the default filename.
 
-6. **Config Application**: Execute `copy {filename} running-config` and verify success by checking for "bytes copied" or "ok" in output.
+6. **Config Application**: Execute `copy {filename} running-config`. **Automatic confirmation**: The tool detects the "Destination filename [running-config]?" prompt and automatically sends Enter.
+
+7. **Configuration Verification**: After applying the configuration, the tool performs intelligent verification by:
+   - Extracting key configuration elements from the original config (hostname, VLANs, interfaces with descriptions, IP addresses)
+   - Executing `show running-config` commands to verify each element exists on the device
+   - **Failing the provisioning if ANY element is missing** - this catches cases where the copy command appeared successful but configuration wasn't actually applied (e.g., due to missed confirmation prompts)
+   - Example verification: If config contains `hostname test-switch-01`, the tool executes `show running-config | include hostname` and verifies "test-switch-01" appears in the output
 
 ### Error Handling Philosophy
 

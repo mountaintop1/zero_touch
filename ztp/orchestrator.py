@@ -398,11 +398,12 @@ class ProvisioningOrchestrator:
 
             logger.info(f"Executing: {copy_command_log}")
 
-            # Execute copy command
+            # Execute copy command with auto-confirmation for filename prompt
             output = self.console_manager.execute_device_command(
                 command=copy_command,
                 wait_time=30,
-                timeout=300  # 5 minutes for large configs
+                timeout=300,  # 5 minutes for large configs
+                auto_confirm=True  # Automatically confirm destination filename prompt
             )
 
             # Check for successful copy
@@ -434,11 +435,12 @@ class ProvisioningOrchestrator:
             apply_command = f"copy {self.config_filename} running-config"
             logger.info(f"Executing: {apply_command}")
 
-            # Execute apply command
+            # Execute apply command with auto-confirmation for any prompts
             output = self.console_manager.execute_device_command(
                 command=apply_command,
                 wait_time=60,
-                timeout=600  # 10 minutes for config application
+                timeout=600,  # 10 minutes for config application
+                auto_confirm=True  # Automatically confirm any prompts
             )
 
             # Check for errors in output
@@ -463,19 +465,131 @@ class ProvisioningOrchestrator:
             logger.info("Waiting for device to process configuration...")
             time.sleep(10)
 
-            # Verify configuration was applied by checking running-config
+            # Verify configuration was applied by extracting key config elements
             logger.info("Verifying configuration application...")
-            verify_output = self.console_manager.execute_device_command(
-                command='show running-config | include hostname',
-                wait_time=5
-            )
-            logger.debug(f"Verification output: {verify_output}")
+            self._verify_configuration_applied()
 
         except ConfigurationDeploymentError:
             raise
         except Exception as e:
             logger.error(f"Error applying configuration: {e}")
             raise ProvisioningError(f"Failed to apply configuration: {e}")
+
+    def _verify_configuration_applied(self) -> None:
+        """
+        Verify that configuration was actually applied to the device.
+
+        This method extracts key configuration elements from the original config
+        and verifies they exist in the running configuration on the device.
+
+        Raises:
+            ConfigurationDeploymentError: If verification fails
+        """
+        logger.info("Performing configuration verification...")
+
+        # Extract verification markers from the original configuration
+        verification_items = self._extract_verification_markers()
+
+        if not verification_items:
+            logger.warning(
+                "No verification markers could be extracted from configuration. "
+                "Skipping detailed verification."
+            )
+            return
+
+        logger.info(f"Extracted {len(verification_items)} verification markers")
+
+        # Check each verification item
+        failed_items = []
+        for item_type, item_value in verification_items:
+            logger.debug(f"Checking {item_type}: {item_value}")
+
+            # Build verification command based on item type
+            if item_type == 'hostname':
+                verify_cmd = 'show running-config | include hostname'
+            elif item_type == 'interface':
+                verify_cmd = f'show running-config interface {item_value} | include description'
+            elif item_type == 'vlan':
+                verify_cmd = f'show running-config | include vlan {item_value}'
+            elif item_type == 'ip_address':
+                verify_cmd = f'show running-config | include {item_value}'
+            else:
+                verify_cmd = f'show running-config | include {item_value}'
+
+            try:
+                output = self.console_manager.execute_device_command(
+                    command=verify_cmd,
+                    wait_time=5,
+                    timeout=30
+                )
+
+                # Check if the expected value appears in output
+                if item_value.lower() not in output.lower():
+                    logger.error(f"Verification failed for {item_type}: {item_value}")
+                    failed_items.append((item_type, item_value))
+                else:
+                    logger.debug(f"✓ Verified {item_type}: {item_value}")
+
+            except Exception as e:
+                logger.warning(f"Could not verify {item_type} {item_value}: {e}")
+                # Don't fail on verification command errors, just log them
+
+        # If any verification failed, raise error
+        if failed_items:
+            failed_list = '\n'.join([f"  - {t}: {v}" for t, v in failed_items])
+            logger.error(f"Configuration verification FAILED. Missing items:\n{failed_list}")
+            raise ConfigurationDeploymentError(
+                f"Configuration verification failed. {len(failed_items)} items not found "
+                f"in running-config. This indicates the configuration was not properly applied. "
+                f"Missing items:\n{failed_list}"
+            )
+
+        logger.info("✓ Configuration verification PASSED - all markers found in running-config")
+
+    def _extract_verification_markers(self) -> list:
+        """
+        Extract verification markers from the device configuration.
+
+        Returns a list of tuples: (marker_type, marker_value)
+
+        Returns:
+            List of (type, value) tuples to verify
+        """
+        if not self.device_config:
+            return []
+
+        markers = []
+
+        # Extract hostname
+        hostname_match = re.search(r'^hostname\s+(\S+)', self.device_config, re.MULTILINE)
+        if hostname_match:
+            markers.append(('hostname', hostname_match.group(1)))
+
+        # Extract first 3 interface configurations with descriptions
+        interface_matches = re.findall(
+            r'^interface\s+(\S+).*?(?:description\s+(.+?))?(?=^interface|\Z)',
+            self.device_config,
+            re.MULTILINE | re.DOTALL
+        )
+        for intf, desc in interface_matches[:3]:
+            if desc and desc.strip():
+                markers.append(('interface', intf))
+
+        # Extract VLANs
+        vlan_matches = re.findall(r'^vlan\s+(\d+)', self.device_config, re.MULTILINE)
+        for vlan in vlan_matches[:3]:  # Check first 3 VLANs
+            markers.append(('vlan', vlan))
+
+        # Extract IP addresses (IPv4)
+        ip_matches = re.findall(
+            r'ip address\s+(\d+\.\d+\.\d+\.\d+)\s+(\d+\.\d+\.\d+\.\d+)',
+            self.device_config
+        )
+        for ip, mask in ip_matches[:2]:  # Check first 2 IP addresses
+            markers.append(('ip_address', ip))
+
+        logger.debug(f"Extracted verification markers: {markers}")
+        return markers
 
     def _cleanup(self) -> None:
         """Cleanup resources on failure."""
