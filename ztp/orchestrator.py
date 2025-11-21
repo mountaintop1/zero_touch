@@ -521,6 +521,14 @@ class ProvisioningOrchestrator:
                 logger.warning("Configuration apply completed but status unclear")
                 logger.debug(f"Apply output: {output}")
 
+            # Send extra carriage returns after config application to clear any prompts
+            logger.debug("Sending carriage returns to ensure clean prompt after config application")
+            self.console_manager.channel.send('\r\n')
+            time.sleep(1)
+            self.console_manager.channel.send('\r\n')
+            time.sleep(1)
+            self.console_manager._read_channel()  # Clear buffer
+
             # Wait for device to process configuration
             logger.info("Waiting for device to process configuration...")
             time.sleep(10)
