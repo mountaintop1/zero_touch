@@ -128,9 +128,12 @@ class NetBoxClient:
         """
         Retrieve configuration for a device from NetBox.
 
-        This method retrieves the device's configuration from NetBox's
-        config context or custom field, depending on how configurations
-        are stored in your NetBox instance.
+        This method retrieves the device's configuration from NetBox using
+        multiple methods in priority order:
+        1. Rendered configuration (if config template is assigned)
+        2. Config context data
+        3. Custom fields
+        4. Local context data
 
         Args:
             device_name: Name of the device
@@ -150,8 +153,26 @@ class NetBoxClient:
         # Try to get configuration from config context first
         config = None
 
-        # Option 1: Configuration stored in config context
-        if hasattr(device, 'config_context') and device.config_context:
+        # Option 1: Try to get rendered configuration from NetBox config template
+        if not config:
+            try:
+                logger.debug(f"Attempting to fetch rendered config for device ID {device.id}")
+                # NetBox provides rendered config at: /api/dcim/devices/{id}/render-config/
+                rendered_config = self.nb.dcim.devices.get(device.id).render_config()
+                if rendered_config and hasattr(rendered_config, 'content'):
+                    config = rendered_config.content
+                    logger.info(f"Retrieved rendered config from config template for {device_name}")
+                elif rendered_config:
+                    # Some NetBox versions return the config directly as string
+                    config = str(rendered_config)
+                    logger.info(f"Retrieved rendered config from config template for {device_name}")
+            except AttributeError as e:
+                logger.debug(f"Rendered config not available (method not found): {e}")
+            except Exception as e:
+                logger.debug(f"Could not retrieve rendered config: {e}")
+
+        # Option 2: Configuration stored in config context
+        if not config and hasattr(device, 'config_context') and device.config_context:
             if 'startup_config' in device.config_context:
                 config = device.config_context['startup_config']
                 logger.info(f"Retrieved config from config_context for {device_name}")
@@ -159,7 +180,7 @@ class NetBoxClient:
                 config = device.config_context['configuration']
                 logger.info(f"Retrieved config from config_context for {device_name}")
 
-        # Option 2: Configuration stored in custom field
+        # Option 3: Configuration stored in custom field
         if not config and hasattr(device, 'custom_fields'):
             if device.custom_fields.get('startup_config'):
                 config = device.custom_fields['startup_config']
@@ -168,7 +189,7 @@ class NetBoxClient:
                 config = device.custom_fields['configuration']
                 logger.info(f"Retrieved config from custom_fields for {device_name}")
 
-        # Option 3: Try to get from local context
+        # Option 4: Try to get from local context
         if not config:
             try:
                 local_context = device.local_context_data
@@ -182,8 +203,11 @@ class NetBoxClient:
             logger.error(f"No configuration found for device '{device_name}'")
             raise ConfigurationNotFoundError(
                 f"No configuration available for device '{device_name}'. "
-                f"Configuration should be stored in config_context, custom_fields, "
-                f"or local_context_data with key 'startup_config' or 'configuration'"
+                f"Configuration should be available via:\n"
+                f"1. Rendered config template (assign a config template to the device)\n"
+                f"2. Config context with key 'startup_config' or 'configuration'\n"
+                f"3. Custom field 'startup_config' or 'configuration'\n"
+                f"4. Local context data with key 'configuration'"
             )
 
         # Validate configuration is not empty
