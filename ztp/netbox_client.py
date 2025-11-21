@@ -158,40 +158,37 @@ class NetBoxClient:
             try:
                 logger.debug(f"Attempting to fetch rendered config for device ID {device.id}")
 
-                # First, try to get the rendered config directly via API
-                response = self.nb.http_session.get(
-                    f"{self.url}/api/dcim/devices/{device.id}/render-config/"
-                )
-
-                if response.status_code == 200:
-                    data = response.json()
-                    if data and 'content' in data:
-                        config = data['content']
+                # NetBox render-config endpoint requires POST request (not GET)
+                # Use pynetbox's render_config method: device.render_config.create()
+                try:
+                    rendered = device.render_config.create()
+                    if rendered and hasattr(rendered, 'content'):
+                        config = rendered.content
                         logger.info(f"Retrieved rendered config from config template for {device_name}")
-                    else:
-                        logger.debug(f"Rendered config response has no 'content' field: {data}")
-                elif response.status_code == 403:
-                    # If 403, try alternative: get config_context and check if rendered config is there
-                    logger.debug("Rendered config endpoint returned 403, trying config_context as alternative")
-                    try:
-                        # Get device with full details including config_context
-                        device_response = self.nb.http_session.get(
-                            f"{self.url}/api/dcim/devices/?name={device_name}"
+                    elif rendered:
+                        # Some versions may return dict directly
+                        config = rendered.get('content') if isinstance(rendered, dict) else str(rendered)
+                        if config:
+                            logger.info(f"Retrieved rendered config from config template for {device_name}")
+                except AttributeError:
+                    # Fallback to direct API call if render_config method doesn't exist
+                    logger.debug("device.render_config.create() not available, trying direct API POST")
+                    response = self.nb.http_session.post(
+                        f"{self.url}/api/dcim/devices/{device.id}/render-config/"
+                    )
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data and 'content' in data:
+                            config = data['content']
+                            logger.info(f"Retrieved rendered config via API POST for {device_name}")
+                    elif response.status_code == 403:
+                        logger.warning(
+                            f"Rendered config API returned 403 Forbidden. "
+                            f"API token needs write permissions to access render-config endpoint."
                         )
-                        if device_response.status_code == 200:
-                            devices = device_response.json().get('results', [])
-                            if devices:
-                                config_context = devices[0].get('config_context', {})
-                                logger.debug(f"Retrieved config_context with {len(config_context)} keys")
+                    else:
+                        logger.debug(f"Rendered config API returned status {response.status_code}")
 
-                                # Check if rendered_config is in config_context
-                                if 'rendered_config' in config_context:
-                                    config = config_context['rendered_config']
-                                    logger.info(f"Retrieved rendered_config from config_context for {device_name}")
-                    except Exception as ctx_error:
-                        logger.debug(f"Could not retrieve config from config_context: {ctx_error}")
-                else:
-                    logger.debug(f"Rendered config API returned status {response.status_code}")
             except Exception as e:
                 logger.debug(f"Could not retrieve rendered config: {e}")
 
