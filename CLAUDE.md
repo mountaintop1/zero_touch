@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a **Zero Touch Provisioning (ZTP) Tool** for network devices. It automates device provisioning by retrieving configurations from NetBox (source of truth), deploying them via FTP, and applying them through console access. The tool verifies device identity by serial number before configuration to prevent misconfiguration.
 
+## Important Documentation
+
+- **[NetBox Rendered Config Guide](docs/NETBOX_RENDERED_CONFIG.md)** - Comprehensive guide on retrieving rendered configurations from NetBox using the API. READ THIS FIRST when troubleshooting NetBox config retrieval issues.
+
 ## Development Commands
 
 ### Environment Setup
