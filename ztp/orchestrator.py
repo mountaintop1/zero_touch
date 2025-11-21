@@ -315,9 +315,68 @@ class ProvisioningOrchestrator:
             self.console_manager.channel.send('\n')
             time.sleep(1)
 
+            # Enter enable mode
+            logger.info("Entering enable mode")
+            self._enter_enable_mode()
+
         except (ConnectionError, CommandExecutionError) as e:
             logger.error(f"Console connection error: {e}")
             raise ProvisioningError(f"Failed to connect to console: {e}")
+
+    def _enter_enable_mode(self) -> None:
+        """
+        Enter enable (privileged EXEC) mode on the device.
+
+        Detects current prompt and enters enable mode if needed.
+        Handles enable password if required.
+
+        Raises:
+            ProvisioningError: If unable to enter enable mode
+        """
+        try:
+            # Send carriage return to get current prompt
+            self.console_manager.channel.send('\r\n')
+            time.sleep(1)
+            output = self.console_manager._read_channel()
+
+            logger.debug(f"Current prompt: {output[-50:]}")
+
+            # Check if already in enable mode (prompt ends with #)
+            if '#' in output:
+                logger.info("Already in enable mode")
+                return
+
+            # Try to enter enable mode
+            logger.info("Attempting to enter enable mode with 'enable' command")
+            self.console_manager.channel.send('enable\r\n')
+            time.sleep(2)
+            output = self.console_manager._read_channel()
+
+            # Check if password is required
+            if 'password:' in output.lower() or 'Password:' in output:
+                logger.warning("Enable password required but not configured")
+                logger.warning("Attempting to proceed without password (press Enter)")
+                self.console_manager.channel.send('\r\n')
+                time.sleep(2)
+                output = self.console_manager._read_channel()
+
+            # Verify we're in enable mode now
+            self.console_manager.channel.send('\r\n')
+            time.sleep(1)
+            output = self.console_manager._read_channel()
+
+            if '#' not in output:
+                logger.error(f"Failed to enter enable mode. Prompt: {output[-100:]}")
+                raise ProvisioningError(
+                    "Unable to enter enable mode. Device may require enable password. "
+                    "Please configure device with no enable password or update tool to support it."
+                )
+
+            logger.info("Successfully entered enable mode")
+
+        except Exception as e:
+            logger.error(f"Error entering enable mode: {e}")
+            raise ProvisioningError(f"Failed to enter enable mode: {e}")
 
     def _step_verify_device(self) -> None:
         """Step 4: Verify device identity by comparing serial numbers."""

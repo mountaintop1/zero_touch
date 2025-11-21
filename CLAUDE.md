@@ -93,7 +93,7 @@ The provisioning workflow is strictly sequential and cannot skip steps:
 
 2. **FTP File Creation**: SSH to jump host, create `{device_name}.txt` in `/srv/ftp` with configuration content using SFTP.
 
-3. **Console Connection**: SSH to terminal server, invoke `pmshell`, select console port number to establish interactive console session.
+3. **Console Connection**: SSH to terminal server, invoke `pmshell`, select console port number to establish interactive console session. **Enter enable mode**: Automatically detects current prompt and enters privileged EXEC mode using `enable` command. Handles cases with or without enable password.
 
 4. **Device Verification**: Execute `show version`, parse serial number using regex patterns, compare with NetBox serial. **Abort if mismatch** to prevent wrong device configuration.
 
